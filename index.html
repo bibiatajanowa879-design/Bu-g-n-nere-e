@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F3F0E8">
+<title>Bugün nereye gezeceğiz?</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#F3F0E8;--card:#fff;--ink:#1E2A32;--mute:#66737A;--sea:#0E6E7E;--sand:#E4DCC8;--on:#fff;--err:#B3261E}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#12191D;--card:#1C262C;--ink:#EEF2F3;--mute:#9AA8AE;--sea:#3FB3C6;--sand:#2A363D;--on:#0B1418;--err:#FF8A80}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.mapbox{position:sticky;top:0;z-index:500;height:0;overflow:hidden;background:var(--sand);border-radius:0 0 22px 22px;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:height .7s cubic-bezier(.2,.8,.2,1)}
+.mapbox.open{height:var(--mh,50vh)}
+.mapbox.drag{transition:none}
+#map{position:absolute;top:0;left:0;right:0;bottom:28px}
+.grip{position:absolute;left:0;right:0;bottom:0;height:28px;display:flex;align-items:center;justify-content:center;background:var(--bg);touch-action:none;cursor:ns-resize}
+.grip span{width:48px;height:5px;border-radius:3px;background:var(--mute)}
+#result{scroll-margin-top:calc(var(--mh,50vh) + 8px)}
+h1.ttl{transform-origin:left center;animation:pulse 2.4s ease-in-out infinite}
+#title{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;display:block;width:100%}
+@keyframes pulse{0%,100%{transform:scale(1) rotate(-1deg)}50%{transform:scale(1.04) rotate(-1deg)}}
+@media (prefers-reduced-motion:reduce){h1.ttl{animation:none}.mapbox{transition-duration:.01s}}
+main{max-width:560px;margin:0 auto;padding:calc(6px + env(safe-area-inset-top,0px)) 20px 90px}
+h1{font-size:28px;line-height:1.15;margin:16px 0 6px;font-weight:800;color:var(--sea)}
+h2{font-size:21px;margin:0}
+.lbl{font-weight:600;margin:22px 0 10px;font-size:15px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border:0}
+.chip{padding:12px 20px;border-radius:14px;background:var(--sand);color:var(--ink);font-weight:600}
+.chip.on{background:var(--sea);color:var(--on)}
+.step{display:flex;align-items:center;gap:20px}
+.step button{width:48px;height:48px;border-radius:50%;background:var(--sand);color:var(--ink);font-size:24px}
+.step b{font-size:28px;min-width:36px;text-align:center}
+input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--sand);background:var(--card);color:var(--ink);font:inherit}
+.cta{display:block;width:100%;margin-top:26px;padding:18px;border-radius:16px;background:var(--ink);color:var(--bg);font-weight:700;font-size:17px;text-align:center;text-decoration:none}
+.cta.sea{background:var(--sea);color:var(--on)}
+.cta:disabled{opacity:.6}
+.mute{color:var(--mute);line-height:1.45;margin:4px 0 0;font-size:14px}
+.err{color:var(--err);margin-top:14px}
+.stop{display:flex;gap:14px;background:var(--card);border-radius:16px;padding:16px;margin-top:12px;text-decoration:none;color:var(--ink);width:100%;text-align:left}
+.time{font-weight:800;color:var(--sea);min-width:48px}
+.name{font-size:17px;font-weight:700}
+.cost{margin-top:6px;color:var(--sea);font-weight:600;font-size:13px}
+.total{margin-top:18px;font-weight:700}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:600;display:flex;background:var(--bg);border-top:1px solid var(--sand);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;padding:16px;background:none;color:var(--mute);font-weight:600}
+nav button.on{color:var(--sea);font-weight:800}
+.hidden{display:none}
+.pin{width:30px;height:30px;border-radius:50%;background:var(--sea);color:var(--on);border:2px solid #fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
+.me{width:16px;height:16px;border-radius:50%;background:#2F7DF6;border:3px solid #fff}
+.link{background:none;color:var(--sea);font-weight:700;padding:10px 0}
+</style>
+</head>
+<body>
+<div class="mapbox" id="mapbox"><div id="map"></div><div class="grip" id="grip" role="separator" aria-label="Haritayı büyüt veya küçült"><span></span></div></div>
+<main>
+<section id="vPlan">
+  <h1 class="ttl"><button id="title" type="button">Bugün nereye gidiyoruz?</button></h1>
+  <div class="lbl">Bütçe</div><div class="row" id="budget"></div>
+  <div class="lbl">Gezi tarzı</div><div class="row" id="vibe"></div>
+  <div class="lbl">Kaç kişisiniz?</div>
+  <div class="step"><button id="minus" aria-label="Azalt">−</button><b id="ppl">2</b><button id="plus" aria-label="Artır">+</button></div>
+  <div class="lbl">Neredesin?</div>
+  <input id="area" placeholder="Semt veya şehir (konum alınamazsa yaz)">
+  <p class="mute" id="gps">Rotayı oluştururken GPS konumun kullanılır.</p>
+  <button class="cta" id="go">Rotamı oluştur</button>
+  <div class="err" id="err"></div>
+  <div id="result"></div>
+</section>
+<section id="vFav" class="hidden">
+  <h1>Favoriler</h1><div id="favList"></div><div id="favOpen"></div>
+</section>
+</main>
+<nav><button id="tPlan" class="on">Keşfet</button><button id="tFav">Favoriler (<span id="fc">0</span>)</button></nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const BUDGETS=[['cheap','Ucuz'],['mid','Orta'],['high','Pahalı']];
+const VIBES=[['fun','Eğlence'],['discover','Keşif']];
+// Kategoriler: Overpass filtresi, kişi başı tahmini maliyet (₺), hangi tarzda kullanılır
+const CATS=[
+ {id:'museum',l:'Müze',c:150,v:'d',sel:'["tourism"="museum"]'},
+ {id:'historic',l:'Tarihi yer',c:0,v:'d',sel:'["historic"~"castle|monument|ruins|archaeological_site|fort|city_gate|tower"]'},
+ {id:'viewpoint',l:'Manzara noktası',c:0,v:'d',sel:'["tourism"="viewpoint"]'},
+ {id:'attraction',l:'Gezilecek yer',c:0,v:'d',sel:'["tourism"="attraction"]'},
+ {id:'market',l:'Çarşı / pazar',c:0,v:'d',sel:'["amenity"="marketplace"]'},
+ {id:'park',l:'Park',c:0,v:'fd',sel:'["leisure"="park"]'},
+ {id:'cafe',l:'Kafe',c:200,v:'fd',sel:'["amenity"="cafe"]'},
+ {id:'restaurant',l:'Restoran',c:400,v:'fd',sel:'["amenity"="restaurant"]'},
+ {id:'cinema',l:'Sinema',c:300,v:'f',sel:'["amenity"="cinema"]'},
+ {id:'theatre',l:'Tiyatro',c:350,v:'f',sel:'["amenity"="theatre"]'},
+ {id:'bowling',l:'Bowling',c:300,v:'f',sel:'["leisure"="bowling_alley"]'},
+ {id:'arcade',l:'Oyun salonu',c:250,v:'f',sel:'["leisure"="amusement_arcade"]'},
+ {id:'themepark',l:'Eğlence parkı',c:600,v:'f',sel:'["tourism"="theme_park"]'}
+];
+function catOf(t){
+  if(t.tourism==='museum')return'museum';
+  if(t.historic&&/castle|monument|ruins|archaeological_site|fort|city_gate|tower/.test(t.historic))return'historic';
+  if(t.tourism==='viewpoint')return'viewpoint';
+  if(t.tourism==='attraction')return'attraction';
+  if(t.amenity==='marketplace')return'market';
+  if(t.leisure==='park')return'park';
+  if(t.amenity==='cafe')return'cafe';
+  if(t.amenity==='restaurant')return'restaurant';
+  if(t.amenity==='cinema')return'cinema';
+  if(t.amenity==='theatre')return'theatre';
+  if(t.leisure==='bowling_alley')return'bowling';
+  if(t.leisure==='amusement_arcade')return'arcade';
+  if(t.tourism==='theme_park')return'themepark';
+  return null;
+}
+let st={budget:'mid',vibe:'fun',people:2,favs:[],route:null};
+try{st.favs=JSON.parse(localStorage.getItem('favs')||'[]')}catch(e){}
+const now=new Date(),dateStr=now.toISOString().slice(0,10);
+
+function chips(el,list,key){el.innerHTML='';list.forEach(([id,l])=>{const b=document.createElement('button');b.className='chip'+(st[key]===id?' on':'');b.textContent=l;b.onclick=()=>{st[key]=id;chips(el,list,key);if(key==='vibe')warm()};el.appendChild(b)})}
+chips($('budget'),BUDGETS,'budget');chips($('vibe'),VIBES,'vibe');
+$('minus').onclick=()=>{st.people=Math.max(1,st.people-1);$('ppl').textContent=st.people};
+$('plus').onclick=()=>{st.people=Math.min(20,st.people+1);$('ppl').textContent=st.people};
+
+const map=L.map('map',{zoomControl:true}).setView([41.0082,28.9784],12);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+let layer=L.layerGroup().addTo(map);
+
+function esc(t){const d=document.createElement('div');d.textContent=t==null?'':String(t);return d.innerHTML}
+function dist(a,b){const R=6371000,r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLn=(b.lng-a.lng)*r;const x=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLn/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function seeded(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}let a=h>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const hhmm=m=>String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+
+function getPos(){return new Promise(res=>{if(!navigator.geolocation)return res(null);navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),()=>res(null),{timeout:6000,maximumAge:600000,enableHighAccuracy:false})})}
+async function geocode(q){
+  let j=[];
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=tr&q='+encodeURIComponent(q));j=(await r.json()).map(x=>({lat:+x.lat,lng:+x.lon}))}catch(e){}
+  if(!j.length){
+    const r=await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=tr&name='+encodeURIComponent(q));
+    const d=await r.json();j=(d.results||[]).map(x=>({lat:x.latitude,lng:x.longitude}));
+  }
+  if(!j.length)throw new Error('Bu yer bulunamadı. Başka bir semt veya şehir yaz.');
+  return j[0];
+}
+const ELS=new Map();
+const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+function fetchEls(pos,vibe){
+  const key=[dateStr,vibe,pos.lat.toFixed(2),pos.lng.toFixed(2)].join('|');
+  if(ELS.has(key))return ELS.get(key);
+  const p=(async()=>{
+    try{const c=localStorage.getItem('ov|'+key);if(c)return JSON.parse(c)}catch(e){}
+    const A='(around:1800,'+pos.lat+','+pos.lng+')["name"]';
+    const body=vibe==='fun'
+      ?'nwr'+A+'["amenity"~"^(cafe|restaurant|cinema|theatre)$"];nwr'+A+'["leisure"~"^(park|bowling_alley|amusement_arcade)$"];nwr'+A+'["tourism"="theme_park"];'
+      :'nwr'+A+'["tourism"~"^(museum|viewpoint|attraction)$"];nwr'+A+'["historic"~"^(castle|monument|ruins|archaeological_site|fort|city_gate|tower)$"];nwr'+A+'["amenity"~"^(marketplace|cafe|restaurant)$"];nwr'+A+'["leisure"="park"];';
+    const q='[out:json][timeout:12];('+body+');out center 250;';
+    const ctrls=OVP.map(()=>new AbortController());
+    const tasks=OVP.map((u,i)=>{
+      const t=setTimeout(()=>ctrls[i].abort(),12000);
+      return fetch(u,{method:'POST',body:'data='+encodeURIComponent(q),signal:ctrls[i].signal})
+        .then(r=>{if(!r.ok)throw new Error('x');return r.json()})
+        .then(j=>{clearTimeout(t);return j.elements});
+    });
+    let els;
+    try{els=await Promise.any(tasks)}catch(e){throw new Error('Harita verisi şu an alınamadı. Biraz sonra tekrar dene.')}
+    ctrls.forEach(c=>c.abort());
+    try{localStorage.setItem('ov|'+key,JSON.stringify(els))}catch(e){}
+    return els;
+  })();
+  ELS.set(key,p);p.catch(()=>ELS.delete(key));
+  return p;
+}
+function warm(){if(st.pos)fetchEls(st.pos,st.vibe).catch(()=>{})}
+
+function buildRoute(els,pos){
+  const rnd=seeded(dateStr+st.budget+st.vibe+st.people+pos.lat.toFixed(2)+pos.lng.toFixed(2));
+  const maxC={cheap:200,mid:450,high:9999}[st.budget],bias={cheap:-1,mid:0,high:1}[st.budget];
+  const seen=new Set();
+  let cand=els.map(e=>{
+    const t=e.tags||{},id=catOf(t),lat=e.lat||(e.center&&e.center.lat),lng=e.lon||(e.center&&e.center.lon);
+    if(!id||!t.name||!lat||seen.has(t.name))return null;seen.add(t.name);
+    const c=CATS.find(x=>x.id===id);if(c.c>maxC)return null;
+    const p={lat,lng};return{name:t.name,cat:c,lat,lng,d:dist(pos,p)};
+  }).filter(Boolean);
+  if(cand.length<3)throw new Error('Yakında yeterli mekan bulunamadı. Bütçeyi veya tarzı değiştir ya da başka bir yer yaz.');
+  cand.forEach(x=>x.s=rnd()+bias*x.cat.c/600-x.d/2500*0.4);
+  cand.sort((a,b)=>b.s-a.s);
+  const pick=[],used={};
+  for(const x of cand){if(pick.length>=4)break;if((used[x.cat.id]||0)>=1)continue;used[x.cat.id]=1;pick.push(x)}
+  for(const x of cand){if(pick.length>=4)break;if(!pick.includes(x))pick.push(x)}
+  // en yakın komşu sırası
+  const ordered=[];let cur=pos,rest=pick.slice();
+  while(rest.length){rest.sort((a,b)=>dist(cur,a)-dist(cur,b));const n=rest.shift();ordered.push(n);cur=n}
+  let t=now.getHours()*60+(now.getMinutes()>30?60:30)+15;
+  if(t<9*60)t=9*60;if(t>20*60)t=10*60;
+  let prev=pos;
+  ordered.forEach(s=>{s.time=hhmm(t);s.leg=dist(prev,s);t+=90+Math.round(s.leg/1000*12);prev=s;s.cost=s.cat.c});
+  return{title:(st.vibe==='fun'?'Eğlence':'Keşif')+' rotası: '+ordered.length+' durak',stops:ordered,people:st.people,date:dateStr,pos};
+}
+
+function drawMap(r){
+  layer.clearLayers();
+  const pts=[];
+  if(r.pos){L.marker([r.pos.lat,r.pos.lng],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[16,16]})}).addTo(layer);pts.push([r.pos.lat,r.pos.lng])}
+  const line=[];
+  r.stops.forEach((s,i)=>{
+    L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:'<div class="pin">'+(i+1)+'</div>',iconSize:[30,30],iconAnchor:[15,15]})}).bindPopup(esc(s.name)).addTo(layer);
+    line.push([s.lat,s.lng]);pts.push([s.lat,s.lng]);
+  });
+  L.polyline(r.pos?[[r.pos.lat,r.pos.lng],...line]:line,{color:'#0E6E7E',weight:5,dashArray:'8 8'}).addTo(layer);
+  const mb=$('mapbox'),run=()=>{map.invalidateSize();map.fitBounds(pts,{padding:[40,40],animate:true})};
+  if(!mb.classList.contains('open')){mb.classList.add('open');setTimeout(run,720)}else run();
+}
+function renderRoute(r,box,save){
+  const dir='https://www.google.com/maps/dir/'+(r.pos?r.pos.lat+','+r.pos.lng+'/':'')+r.stops.map(s=>s.lat+','+s.lng).join('/');
+  let tot=0,h='<div style="margin-top:22px"><h2>'+esc(r.title)+'</h2>';
+  r.stops.forEach((s,i)=>{
+    tot+=s.cost;
+    h+='<a class="stop" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+s.lat+','+s.lng+'"><span class="time">'+esc(s.time)+'</span><span><span class="name">'+(i+1)+'. '+esc(s.name)+'</span><p class="mute">'+esc(s.cat.l)+' · '+(s.leg<1000?Math.round(s.leg/10)*10+' m':(s.leg/1000).toFixed(1)+' km')+' uzakta</p><div class="cost">'+(s.cost?'Kişi başı ≈ '+s.cost+' ₺':'Genelde ücretsiz')+' · Haritada aç</div></span></a>';
+  });
+  h+='<div class="total">Tahmini toplam: ≈ '+tot*r.people+' ₺ ('+r.people+' kişi)</div><p class="mute">Fiyatlar mekan türüne göre tahmindir. Saatleri Maps’te kontrol et.</p>';
+  h+='<a class="cta sea" target="_blank" rel="noopener" href="'+dir+'">Rotayı Google Maps’te aç</a>';
+  if(save)h+='<button class="cta" id="saveBtn">Favorilere ekle</button>';
+  box.innerHTML=h+'</div>';
+  if(save)$('saveBtn').onclick=()=>{st.favs.unshift(r);try{localStorage.setItem('favs',JSON.stringify(st.favs))}catch(e){}$('saveBtn').textContent='Favorilerde';$('saveBtn').disabled=true;renderFavs()};
+}
+
+$('go').onclick=async()=>{
+  const b=$('go');$('err').textContent='';$('result').innerHTML='';b.disabled=true;b.textContent='Rota hazırlanıyor…';
+  try{
+    const typed=$('area').value.trim();let pos=null;
+    b.textContent='Konum alınıyor…';
+    if(typed)pos=await geocode(typed);else{pos=await (st.posP||getPos());if(!pos)pos=await getPos()}
+    if(!pos){$('gps').textContent='Konum alınamadı. Yukarıya semt veya şehir yaz.';throw new Error('Konum alınamadı. Semt veya şehir yazıp tekrar dene.')}
+    $('gps').textContent=typed?'Konum: '+typed:'Konum alındı.';
+    b.textContent='Mekanlar taranıyor…';const els=await fetchEls(pos,st.vibe);b.textContent='Rota kuruluyor…';
+    const r=buildRoute(els,pos);st.route=r;
+    renderRoute(r,$('result'),true);drawMap(r);
+    $('result').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){$('err').textContent=(e instanceof TypeError||/failed to fetch|network|load failed/i.test(e&&e.message||''))?'İnternete bağlanılamadı. Bu sayfa dış bağlantıları engelleyen bir önizlemede açılmış olabilir. Siteyi kendi adresinden (GitHub Pages) aç ve bağlantını kontrol et.':(e&&e.message)||'Bir hata oluştu. Tekrar dene.'}
+  finally{b.disabled=false;b.textContent='Rotamı oluştur'}
+};
+
+function renderFavs(){
+  $('fc').textContent=st.favs.length;$('favOpen').innerHTML='';const l=$('favList');l.innerHTML='';
+  if(!st.favs.length){l.innerHTML='<p class="mute">Henüz favori rota yok. Bir rota oluşturup kaydet.</p>';return}
+  st.favs.forEach((f,i)=>{
+    const b=document.createElement('button');b.className='stop';
+    b.innerHTML='<span><span class="name">'+esc(f.title)+'</span><p class="mute">'+esc(f.date)+' · '+f.people+' kişi</p></span>';
+    b.onclick=()=>{
+      l.innerHTML='<button class="link" id="back">‹ Listeye dön</button>';$('back').onclick=renderFavs;
+      renderRoute(f,$('favOpen'),false);drawMap(f);
+      const d=document.createElement('button');d.className='cta';d.style.background='var(--err)';d.style.color='var(--on)';d.textContent='Favoriden sil';
+      d.onclick=()=>{if(confirm('Bu rota silinsin mi?')){st.favs.splice(i,1);try{localStorage.setItem('favs',JSON.stringify(st.favs))}catch(e){}renderFavs()}};
+      $('favOpen').appendChild(d);
+    };
+    l.appendChild(b);
+  });
+}
+function tab(t){
+  $('vPlan').classList.toggle('hidden',t!=='plan');$('vFav').classList.toggle('hidden',t!=='fav');
+  $('tPlan').classList.toggle('on',t==='plan');$('tFav').classList.toggle('on',t==='fav');
+  if(t==='fav')renderFavs();else if(st.route)drawMap(st.route);
+}
+$('tPlan').onclick=()=>tab('plan');$('tFav').onclick=()=>tab('fav');
+renderFavs();
+
+// Harita boyutu: ekranın yarısı; tutacaktan yukarı/aşağı sürüklenir
+document.documentElement.style.setProperty('--mh',Math.round(innerHeight*0.5)+'px');
+(function(){
+  const g=$('grip'),mb=$('mapbox');let y0=null,h0=0,raf;
+  g.addEventListener('pointerdown',e=>{y0=e.clientY;h0=mb.offsetHeight;mb.classList.add('drag');g.setPointerCapture(e.pointerId)});
+  g.addEventListener('pointermove',e=>{
+    if(y0===null)return;
+    const h=Math.max(innerHeight*.2,Math.min(innerHeight*.85,h0+e.clientY-y0));
+    document.documentElement.style.setProperty('--mh',h+'px');
+    cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>map.invalidateSize());
+  });
+  const end=()=>{if(y0===null)return;y0=null;mb.classList.remove('drag');map.invalidateSize()};
+  g.addEventListener('pointerup',end);g.addEventListener('pointercancel',end);
+})();
+
+// Minecraft tarzı değişen başlık: her girişte farklı bir yazı
+const TITLES=['Bugün nereye gidiyoruz?','Bugün hedef neresi?','Hangi köşeyi keşfediyoruz?','Maceraya hazır mısın?','Bugün hangi yola çıkıyoruz?','Bugünün rotası ne olsun?','Çantayı al, yola çıkalım!','Şehirde kaybolmaya var mısın?','Bugün nerede görüşüyoruz?','Bugünün macerası seni bekliyor!','Haritada yeni bir nokta bulalım mı?','Bir sokak, bir hikâye. Nereye?','Bugün yeni bir yer keşfet!','Hadi, bugün bir yerlerde kaybolalım!'];
+let ti=-1;try{ti=+localStorage.getItem('ti')}catch(e){}
+function newTitle(){let n;do{n=Math.floor(Math.random()*TITLES.length)}while(n===ti&&TITLES.length>1);ti=n;try{localStorage.setItem('ti',n)}catch(e){}const el=$('title');el.textContent=TITLES[n];document.title=TITLES[n];try{el.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:260,easing:'ease-out'})}catch(e){}}
+newTitle();$('title').onclick=newTitle;
+// Sayfa açılır açılmaz konumu al ve mekanları arka planda yükle: butona basınca hazır olsun
+st.posP=getPos();st.posP.then(p=>{st.pos=p;warm()});
+</script>
+</body>
+</html>
